@@ -24,9 +24,24 @@ public class Deck {
         return cards.size();
     }
 
+    public boolean isEmpty() {
+        return cards.size() == 0;
+    }
+
     public boolean has(Card.Suit suit, Card.Rank rank) {
         Card card = new Card(suit, rank);
         return cards.stream().anyMatch(c -> c.equals(card));
+    }
+
+    public List<Card> hasN(Card.Rank rank, int n) {
+        List<Card> found = new ArrayList<>();
+        for (Card card : cards) {
+            if (card.getRank() == rank) {
+                found.add(card);
+                if (found.size() == n) return found;
+            }
+        }
+        return null;
     }
 
     public boolean has(Card card) {
