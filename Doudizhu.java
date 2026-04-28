@@ -6,12 +6,15 @@ import java.util.Scanner;
 import java.util.function.Function;
 
 public class Doudizhu {
+    private static EngineBridge bridge = new EngineBridge("./Doudizhu");
+    private static boolean firstListener = true;
 
     public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        CardSet cs1 = input(scanner);
-        CardSet cs2 = input(scanner);
-        System.out.println("Compared to the first set, the second set is "+cs2.compare(cs1));
+        bridge.startListening(firstListener);
+        firstListener = false;
+        bridge.sendCommand("isready");
+
+        new Doudizhu().play();
     }
 
     private static CardSet input(Scanner scanner) {
