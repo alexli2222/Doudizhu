@@ -10,6 +10,11 @@ public class Doudizhu {
     private static boolean firstListener = true;
 
     public static void main(String[] args) {
+        // Scanner scanner = new Scanner(System.in);
+        // CardSet cs1 = input(scanner);
+        // CardSet cs2 = input(scanner);
+        // System.out.println("Compared to the first set, the second set is "+cs2.compare(cs1));
+        new Doudizhu().play();
         bridge.startListening(firstListener);
         firstListener = false;
         bridge.sendCommand("isready");
@@ -79,34 +84,166 @@ public class Doudizhu {
                 System.out.print("Player "+name+" bids: ");
                 bid = scanner.nextInt();
             }
+            scanner.nextLine(); // consume leftover newline after nextInt
             return bid;
         }
 
-        void turn() {
+        CardSet turn(CardSet current) {
+            System.out.println(this);
+            CardSet play = input(current);
+            play.display(this);
+            return play;
+        }
+
+        CardSet input(CardSet current) {
+            List<Card> set = null;
+            boolean valid = false;
+            CardSet cardSet = null;
+            while (!valid) {
+                System.out.print(name+", please enter the set you wish to play (ranks only, blank to pass): ");
+                String input = scanner.nextLine().trim();
+                if (input.isEmpty() || input.equalsIgnoreCase("pass")) {
+                    if (current == null) {
+                        System.out.println("You control the table — you must play.");
+                        continue;
+                    }
+                    System.out.println(name+" passed");
+                    return null;
+                }
+                String[] strings = input.split(" ");
+                HashMap<Card.Rank, Integer> counts = new HashMap<>();
+                for (String string : strings) {
+                    Card.Rank rank = null;
+                    for (Card.Rank r : Card.Rank.values()) {
+                        if (r.getDisplay().equals(string)) rank = r;
+                    }
+                    if (rank != null) {
+                        counts.put(rank, counts.getOrDefault(rank, 0) + 1);
+                    }
+                }
+                set = canPlay(counts);
+                if (set != null) {
+                    cardSet = getCardSet(set);
+                    if (current == null) valid = true;
+                    else if (cardSet != null)
+                        valid = cardSet.compare(current) == CardSet.ComparisonResult.LARGER;
+                }
+            }
+            play(set);
+            return cardSet;
+        }
+
+        List<Card> canPlay(HashMap<Card.Rank, Integer> req) {
+            List<Card> all = new ArrayList<>();
+            for (var entry : req.entrySet()) {
+                Card.Rank rank = entry.getKey();
+                int count = entry.getValue();
+                List<Card> possible = hasN(rank, count);
+                if (possible == null) return null;
+                all.addAll(possible);
+            }
+            return (all.isEmpty() ? null : all);
         }
     }
 
     private final static class CardSet {
         static enum Type {
-            SINGLE(false),
-            PAIR(false),
-            TRIPLE(false),
-            TRIPLE_BURN_SINGLE(false),
-            TRIPLE_BURN_PAIR(false),
-            STRAIGHT(false),
-            PAIR_STRAIGHT(false),
-            TRIPLE_STRAIGHT_BURN_SINGLE(false),
-            TRIPLE_STRAIGHT_BURN_PAIR(false),
-            BOMB(true),
-            QUAD_BURN_SINGLE(false),
-            QUAD_BURN_PAIR(false),
-            ROCKET(true);
+            SINGLE(false) {
+                @Override
+                String formatted(List<Card> main, List<Card> burn) {
+                    return "a single "+main.getFirst().getRank().getDisplay();
+                }
+            },
+            PAIR(false) {
+                @Override
+                String formatted(List<Card> main, List<Card> burn) {
+                    return "a pair of "+main.getFirst().getRank().getDisplay()+"'s";
+                }
+            },
+            TRIPLE(false) {
+                @Override
+                String formatted(List<Card> main, List<Card> burn) {
+                    return "a triplet of "+main.getFirst().getRank().getDisplay()+"'s";
+                }
+            },
+            TRIPLE_BURN_SINGLE(false) {
+                @Override
+                String formatted(List<Card> main, List<Card> burn) {
+                    return "a triplet of "+main.getFirst().getRank().getDisplay()+"'s while burning a single "+burn.getFirst().getRank().getDisplay();
+                }
+            },
+            TRIPLE_BURN_PAIR(false) {
+                @Override
+                String formatted(List<Card> main, List<Card> burn) {
+                    return "a triplet of "+main.getFirst().getRank().getDisplay()+"'s while burning a pair of "+burn.getFirst().getRank().getDisplay()+"'s";
+                }
+            },
+            STRAIGHT(false) {
+                @Override
+                String formatted(List<Card> main, List<Card> burn) {
+                    return "a straight of "+main.size()+" singles from "+main.getFirst().getRank().getDisplay()+" to "+main.getLast().getRank().getDisplay();
+                }
+            },
+            PAIR_STRAIGHT(false) {
+                @Override
+                String formatted(List<Card> main, List<Card> burn) {
+                    return "a straight of "+(main.size() / 2)+" pairs from "+main.getFirst().getRank().getDisplay()+" to "+main.getLast().getRank().getDisplay();
+                }
+            },
+            TRIPLE_STRAIGHT(false) {
+                @Override
+                String formatted(List<Card> main, List<Card> burn) {
+                    return "a straight of "+(main.size() / 3)+" triplets from "+main.getFirst().getRank().getDisplay()+" to "+main.getLast().getRank().getDisplay();
+                }
+            },
+            TRIPLE_STRAIGHT_BURN_SINGLE(false) {
+                @Override
+                String formatted(List<Card> main, List<Card> burn) {
+                    String[] separated = (String[]) burn.stream().map(String::valueOf).toArray();
+                    return "a straight of "+(main.size() / 3)+" triplets from "+main.getFirst().getRank().getDisplay()+" to "+main.getLast().getRank().getDisplay()+" while burning the singles: "+String.join(", ", separated);
+                }
+            },
+            TRIPLE_STRAIGHT_BURN_PAIR(false) {
+                @Override
+                String formatted(List<Card> main, List<Card> burn) {
+                    List<Card> combed = new ArrayList<>();
+                    for (int i = 0; i < burn.size(); i+=2) combed.add(burn.get(i));
+                    String[] separated = (String[]) burn.stream().map(String::valueOf).toArray();
+                    return "a straight of "+(main.size() / 3)+" triplets from "+main.getFirst().getRank().getDisplay()+" to "+main.getLast().getRank().getDisplay()+" while burning the pairs: "+String.join(", ", separated);
+                }
+            },
+            BOMB(true) {
+                @Override
+                String formatted(List<Card> main, List<Card> burn) {
+                    return "a "+main.getFirst().getRank().getDisplay()+" bomb";
+                }
+            },
+            QUAD_BURN_SINGLE(false) {
+                @Override
+                String formatted(List<Card> main, List<Card> burn) {
+                    return "quadruple "+main.getFirst().getRank().getDisplay()+"'s while burning a single "+burn.getFirst().getRank().getDisplay();
+                }
+            },
+            QUAD_BURN_PAIR(false) {
+                @Override
+                String formatted(List<Card> main, List<Card> burn) {
+                    return "quadruple "+main.getFirst().getRank().getDisplay()+"'s while burning a pair of "+burn.getFirst().getRank().getDisplay();
+                }
+            },
+            ROCKET(true) {
+                @Override
+                String formatted(List<Card> main, List<Card> burn) {
+                    return "a rocket";
+                }
+            };
 
             private boolean canOverride;
 
             Type(boolean canOverride) {
                 this.canOverride = canOverride;
             }
+
+            abstract String formatted(List<Card> main, List<Card> burn);
         }
 
         Type type;
@@ -124,7 +261,7 @@ public class Doudizhu {
         }
         
         CardSet(Type type, List<Card> main, int extra) {
-            this(type, main, List.of(), 0);
+            this(type, main, List.of(), extra);
         }
         
         CardSet(Type type, List<Card> main, List<Card> burn, int extra) {
@@ -151,13 +288,14 @@ public class Doudizhu {
 
         ComparisonResult compare(CardSet other) {
             if (!type.canOverride && (type != other.type || extra != other.extra)) return ComparisonResult.INCOMPARABLE;
-            int res = (weight - other.weight) / Math.abs(weight - other.weight);
-            switch (res) {
-                case 1: return ComparisonResult.LARGER;
-                case 0: return ComparisonResult.EQUAL;
-                case -1: return ComparisonResult.SMALLER;
-            }
-            return ComparisonResult.INCOMPARABLE;
+            int diff = weight - other.weight;
+            if (diff > 0) return ComparisonResult.LARGER;
+            if (diff < 0) return ComparisonResult.SMALLER;
+            return ComparisonResult.EQUAL;
+        }
+
+        void display(Player player) {
+            System.out.println(player.name+" played "+type.formatted(main, burn));
         }
     }
 
@@ -178,8 +316,11 @@ public class Doudizhu {
     private Player nongmin1;
     private Player nongmin2;
 
+    private CardSet currentSet;
+
     public Doudizhu() {
         scanner = new Scanner(System.in);
+        currentSet = null;
     }
 
     public void play() {
@@ -194,6 +335,7 @@ public class Doudizhu {
         System.out.println(dizhu);
         System.out.println(nongmin1);
         System.out.println(nongmin2);
+        gameLoop();
     }
 
     private List<Card> deal() {
@@ -258,6 +400,31 @@ public class Doudizhu {
         return true;
     }
 
+    private int gameLoop() {
+        int turn = 0;
+        int owner = -1; // last person to play a bigger card, if its you then that means start new trick
+        int won = -1; // 0 = dizhu wins, 1 = nongmin wins
+        while (won < 0) {
+            Player current = switch (turn) {
+                case 0 -> dizhu;
+                case 1 -> nongmin1;
+                default -> nongmin2;
+            };
+            if (turn == owner) {
+                currentSet = null;
+            }
+            CardSet played = current.turn(currentSet);
+            if (played != null) {
+                currentSet = played;
+                owner = turn;
+            }
+            if (dizhu.isEmpty()) won = 0;
+            else if (nongmin1.isEmpty() || nongmin2.isEmpty()) won = 1;
+            turn = (turn + 1) % 3;
+        }
+        return won;
+    }
+
     private static CardSet getCardSet(List<Card> set) {
         List<Function<List<Card>, CardSet>> checks = List.of(
             Doudizhu::isSingle,
@@ -267,6 +434,7 @@ public class Doudizhu {
             Doudizhu::isTripleBurnPair,
             Doudizhu::isStraight,
             Doudizhu::isPairStraight,
+            Doudizhu::isTripleStraight,
             Doudizhu::isTripleStraightBurnSingle,
             Doudizhu::isTripleStraightBurnPair,
             Doudizhu::isBomb,
@@ -357,6 +525,34 @@ public class Doudizhu {
         return new CardSet(CardSet.Type.PAIR_STRAIGHT, set, set.size() / 2);
     }
 
+        private static CardSet isTripleStraight(List<Card> set) {
+        if (set.size() < 6) return null;
+        List<Card> triples = new ArrayList<>();
+        Card.Rank currentTriple;
+        while ((currentTriple = containsTriple(set)) != null) {
+            currentTriple = containsTriple(set);
+            for (int i = 0; i < set.size(); i++) {
+                Card card = set.get(i);
+                if (card.getRank() == currentTriple && triples.add(card)) {
+                    set.remove(card);
+                    i--;
+                }
+            }
+        }
+        if (triples.size() < 6) return null;
+        sort(triples);
+        for (int i = 1; i < triples.size(); i++) {
+            Card card = triples.get(i);
+            if (card.getSuit() == Card.Suit.JOKER || card.getRank() == Card.Rank.TWO) return null;
+            Card last = triples.get(i-1);
+            if (i % 3 == 0)
+                if (getValue(card) != getValue(last)+1) return null;
+            else
+                if (card.getRank() != last.getRank()) return null;
+        }
+        return new CardSet(CardSet.Type.TRIPLE_STRAIGHT, triples, triples.size() / 3);
+    }
+
     private static CardSet isTripleStraightBurnSingle(List<Card> set) {
         if (set.size() < 8) return null;
         List<Card> triples = new ArrayList<>();
@@ -380,7 +576,7 @@ public class Doudizhu {
             if (i % 3 == 0)
                 if (getValue(card) != getValue(last)+1) return null;
             else
-                if (card.getRank() != last.getRank());
+                if (card.getRank() != last.getRank()) return null;
         }
         sort(set);
         if (set.size() == triples.size() / 3)
@@ -411,7 +607,7 @@ public class Doudizhu {
             if (i % 3 == 0)
                 if (getValue(card) != getValue(last)+1) return null;
             else
-                if (card.getRank() != last.getRank());
+                if (card.getRank() != last.getRank()) return null;
         }
         sort(set);
         if (set.size() == triples.size() / 3 * 2) {
