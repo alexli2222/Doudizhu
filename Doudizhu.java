@@ -14,7 +14,6 @@ public class Doudizhu {
         // CardSet cs1 = input(scanner);
         // CardSet cs2 = input(scanner);
         // System.out.println("Compared to the first set, the second set is "+cs2.compare(cs1));
-        new Doudizhu().play();
         bridge.startListening(firstListener);
         firstListener = false;
         bridge.sendCommand("isready");
